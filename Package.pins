@@ -1,0 +1,12 @@
+{
+  "autoPin": true,
+  "pins": [
+    {
+      "package": "SwiftProtobuf",
+      "reason": null,
+      "repositoryURL": "https://github.com/apple/swift-protobuf.git",
+      "version": "0.9.901"
+    }
+  ],
+  "version": 1
+}
