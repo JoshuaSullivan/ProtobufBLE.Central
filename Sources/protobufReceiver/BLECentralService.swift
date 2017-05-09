@@ -20,7 +20,7 @@ class BLECentralService: NSObject {
         case bleNotSupported
         case bleNotAuthorized
         
-        var errorCode: Int {
+        var errorCode: Int32 {
             switch self {
             case .bleNotSupported:
                 return 1000
@@ -41,16 +41,24 @@ class BLECentralService: NSObject {
     
     // MARK: - Properties
     
-    let manager: CBCentralManager
+    fileprivate let manager: CBCentralManager
     
-    var peripheral: CBPeripheral?
+    fileprivate var peripheral: CBPeripheral?
     
-    var completion: CompletionCallback
+    fileprivate var completion: CompletionCallback
+    
+    fileprivate let formatter: DateFormatter = {
+        let df = DateFormatter()
+        df.timeStyle = .short
+        df.dateStyle = .short
+        return df
+    }()
     
     // MARK: - Lifecycle
     
     init(completion: @escaping CompletionCallback) {
-        manager = CBCentralManager(delegate: nil, queue: DispatchQueue.global(qos: .default))
+        let queue = DispatchQueue.main
+        manager = CBCentralManager(delegate: nil, queue: queue)
         self.completion = completion
         super.init()
         manager.delegate = self
@@ -64,6 +72,7 @@ class BLECentralService: NSObject {
         }
         NSLog("Starting scan for peripherals.")
         manager.scanForPeripherals(withServices: [BLEIdentifiers.Services.protoBuf], options: nil)
+//        manager.scanForPeripherals(withServices: nil, options: nil)
     }
     
     fileprivate func stopScan() {
@@ -78,12 +87,25 @@ class BLECentralService: NSObject {
         self.peripheral = nil
         startScan()
     }
+    
+    // MARK: - Data handling
+    
+    fileprivate func handle(data: Data) {
+        do {
+            let packet = try Packet(serializedData: data)
+            let date = Date(timeIntervalSinceReferenceDate: Double(packet.time))
+            NSLog("[\(formatter.string(from: date))] x: \(packet.rx), y: \(packet.ry), z: \(packet.rz)")
+        } catch {
+            NSLog("Could not parse protobuf data: \(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - CBCentralManagerDelegate
 
 extension BLECentralService: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        NSLog("BLE Central Manager did change status.")
         switch central.state {
         case .poweredOn:
             NSLog("BLE is now powered on.")
@@ -101,12 +123,16 @@ extension BLECentralService: CBCentralManagerDelegate {
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        NSLog("Found a peripheral: \(peripheral)")
+        NSLog("Attempting connection...")
+        self.peripheral = peripheral
         central.connect(peripheral, options: nil)
         stopScan()
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        self.peripheral = peripheral
+        NSLog("Successfully connected to peripheral.")
+        NSLog("Discovering services...")
         peripheral.delegate = self
         peripheral.discoverServices([BLEIdentifiers.Services.protoBuf])
     }
@@ -147,6 +173,10 @@ extension BLECentralService: CBPeripheralDelegate {
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        <#code#>
+        guard let data = characteristic.value else {
+            NSLog("Characteristic contained no data on this update.")
+            return
+        }
+        handle(data: data)
     }
 }

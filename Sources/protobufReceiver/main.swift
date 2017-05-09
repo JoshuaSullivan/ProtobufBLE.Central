@@ -1,5 +1,11 @@
-print("Hello, world!")
+import Foundation
 
-let packet = Packet()
+NSLog("Starting BLECentralService...")
 
-debugPrint(packet)
+let manager = BLECentralService(completion: {
+    error in
+    NSLog("BLECentralServices quit with an error: \(error.localizedDescription)")
+    exit(error.errorCode)
+})
+
+RunLoop.main.run()
